@@ -20,6 +20,7 @@
  * the returned socket.
  */
 int lookup_and_connect( const char *host, const char *service );
+int sendall(int socket, char * buf, int *len);
 
 int main( int argc, char *argv[] ) {
 	if (argc != 4) {
@@ -32,15 +33,16 @@ int main( int argc, char *argv[] ) {
 	char buf[MAX_LINE];
 	int s;
 	int len;
+	int size = strlen(filename);
 
 	/* Lookup IP and connect to server */
 	if ( ( s = lookup_and_connect(host, port_no) ) < 0 ) {
 		exit( 1 );
 	}
-	if(send(s, filename, sizeof(filename), 0) < 0){
+	if(sendall(s, filename, &size) == -1){
 		perror( "stream-talk-client: send" );
-		close( s );
-		exit( 1 );
+		close(s);
+		exit(1);
 	}
 	/* Main loop: get and send lines of text */
 		while (1) {
@@ -102,4 +104,20 @@ int lookup_and_connect( const char *host, const char *service ) {
 	freeaddrinfo( result );
 
 	return s;
+}
+int sendall(int socket, char * buf, int *len){
+    int total = 0;        // how many bytes we've sent
+    int bytesleft = *len; // how many we have left to send
+    int n;
+
+    while(total < *len) {
+        n = send(socket, buf + total, bytesleft, 0);
+        if (n == -1) { break; }
+        total += n;
+        bytesleft -= n;
+    }
+
+    *len = total; // return number actually sent here
+
+    return n==-1?-1:0; // return -1 on failure, 0 on success
 }
