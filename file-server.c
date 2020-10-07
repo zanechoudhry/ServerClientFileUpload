@@ -57,12 +57,14 @@ int main( int argc, char *argv[] ) {
 		f = fopen(filename, "r");
 		if(f == NULL){
 			err = "Server Error: Unable to open File";
-			int size = strlen(err);
+			int size = strlen(err) + 1;
 			if(sendall(new_s, err, &size) == -1){
 				perror( "Server Error: send" );
 				close( new_s );
 				exit( 1 );
 			}
+			close( new_s );
+			exit( 1 );
 		}
 		else{
 			while (fread(buf, sizeof(char), sizeof(buf) - 1, f) > 0) {
