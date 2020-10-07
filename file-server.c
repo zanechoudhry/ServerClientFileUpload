@@ -1,3 +1,4 @@
+//Started with code from Blackboard
 /* This code is an updated version of the sample code from "Computer Networks: A Systems
  * Approach," 5th Edition by Larry L. Peterson and Bruce S. Davis. Some code comes from
  * man pages, mostly getaddrinfo(3). */
@@ -20,11 +21,12 @@
  * Returns a passively opened socket or -1 on error. Caller is responsible for calling
  * accept and closing the socket.
  */
-int bind_and_listen( const char *service );
+int bind_and_listen( const char *service);
+int sendall(int socket, char * buf, int *size);
 
 int main( int argc, char *argv[] ) {
-	if (argc > 2) {
-		fprintf(stderr, "Usage: %s Port_Number\n", argv[0]);
+	if (argc != 2) {
+		fprintf(stderr, "Server Error: Usage: %s Port_Number\n", argv[0]);
 		exit(1);
 	}
 	char filename[2000];
@@ -41,37 +43,42 @@ int main( int argc, char *argv[] ) {
 	/* Wait for connection, then receive and print text */
 	while (1) {
 		if ( ( new_s = accept( s, NULL, NULL ) ) < 0 ) {
-			perror( "stream-talk-server: accept" );
+			perror( "Server Error: accept" );
 			close(new_s);
 			exit(1);
 		}
-		if((read = recv(new_s , filename , 2000 , 0)) < 0 ){
-			perror( "streak-talk-server: recv" );
+		buf[MAX_LINE-1] = '\0';
+		if((read = recv(new_s , filename , sizeof(filename) , 0)) < 0 ){
+			perror( "Server Error: recv" );
 			close( new_s );
 			exit(1);
 		}
-		printf("Filename: %s\n" , filename);
 		FILE *f;
 		f = fopen(filename, "r");
 		if(f == NULL){
-			err = "stream-talk-server: Error Opening File";
-			send(new_s, err, sizeof(err),0);
-			close(new_s);
-			exit(1);
+			err = "Server Error: Unable to open File";
+			int size = strlen(err);
+			if(sendall(new_s, err, &size) == -1){
+				perror( "Server Error: send" );
+				close( new_s );
+				exit( 1 );
+			}
 		}
 		else{
-			while (fread(buf, sizeof(char), sizeof(buf), f) > 0) {
+			while (fread(buf, sizeof(char), sizeof(buf) - 1, f) > 0) {
+				buf[MAX_LINE-1] = '\0';
 				len = strlen( buf ) + 1;
-				if (send( new_s, buf, len, 0 ) == -1 ) {
-					perror( "stream-talk-server: send" );
+				if (sendall(new_s, buf, &len) == -1 ) {
+					perror( "Server Error: send" );
 					close( new_s );
 					exit( 1 );
 				}
+				memset(buf,0,sizeof(buf));
 			}
 		}
-	fclose(f);
-	close( new_s );
-	return 0;
+		fclose(f);
+		close( new_s );
+		return 0;
 	}
 }
 
@@ -89,7 +96,7 @@ int bind_and_listen( const char *service ) {
 
 	/* Get local address info */
 	if ( ( s = getaddrinfo( NULL, service, &hints, &result ) ) != 0 ) {
-		fprintf( stderr, "stream-talk-server: getaddrinfo: %s\n", gai_strerror( s ) );
+		fprintf( stderr, "Server Error: getaddrinfo: %s\n", gai_strerror( s ) );
 		return -1;
 	}
 
@@ -106,15 +113,34 @@ int bind_and_listen( const char *service ) {
 		close( s );
 	}
 	if ( rp == NULL ) {
-		perror( "stream-talk-server: bind" );
+		perror( "Server Error: bind" );
 		return -1;
 	}
 	if ( listen( s, MAX_PENDING ) == -1 ) {
-		perror( "stream-talk-server: listen" );
+		perror( "Server Error: listen" );
 		close( s );
 		return -1;
 	}
 	freeaddrinfo( result );
 
 	return s;
+}
+int sendall(int socket, char * buf, int *size){
+    int totalBytes = 0;
+    int bytesRemaining = *size;
+    int n;
+
+    while(totalBytes < *size) {
+        n = send(socket, buf + totalBytes, bytesRemaining, 0);
+        if (n == -1) { break; }
+        totalBytes += n;
+        bytesRemaining -= n;
+    }
+    *size = totalBytes;
+		if(n == -1){
+			return -1;
+		}
+		else{
+			return 0;
+		}
 }
