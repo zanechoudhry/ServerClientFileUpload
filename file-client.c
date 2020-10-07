@@ -1,3 +1,4 @@
+//Started with code from Blackboard
 /* This code is an updated version of the sample code from "Computer Networks: A Systems
  * Approach," 5th Edition by Larry L. Peterson and Bruce S. Davis. Some code comes from
  * man pages, mostly getaddrinfo(3). */
@@ -24,7 +25,7 @@ int sendall(int socket, char * buf, int *len);
 
 int main( int argc, char *argv[] ) {
 	if (argc != 4) {
-		fprintf(stderr, "Usage: %s Host Port_Number Filename\n", argv[0]);
+		fprintf(stderr, "Client Error: Usage: %s Host Port_Number Filename\n", argv[0]);
 		exit(1);
 	}
 	char* port_no = argv[2];
@@ -34,38 +35,45 @@ int main( int argc, char *argv[] ) {
 	int s;
 	int len;
 	int size = strlen(filename);
+	FILE *f;
 
 	/* Lookup IP and connect to server */
 	if ( ( s = lookup_and_connect(host, port_no) ) < 0 ) {
 		exit( 1 );
 	}
 	if(sendall(s, filename, &size) == -1){
-		perror( "stream-talk-client: send" );
+		perror( "Client Error: send" );
 		close(s);
 		exit(1);
 	}
 	/* Main loop: get and send lines of text */
-		while (1) {
-			if (strcmp(buf, "stream-talk-server: Error Opening File") == 0){
-				fprintf(stderr,"stream-talk-server: Error Opening File");
-				close(s);
-				exit(1);
-			}
-			FILE *f;
-			f = fopen(filename, "w");
-			while((len = recv( s, buf, sizeof(buf),0)) > 0){
-				buf[MAX_LINE -1] = '\0';
-			  if ( len < 0 ) {
-					perror( "streak-talk-clent: recv" );
-					close(s);
-					exit(1);
-				}
-			fputs(buf,f);
-			}
-			break;
+	while (1){
+		len = recv(s, buf, sizeof(buf),0);
+		if (strcmp(buf, "Server Error: Unable to open File") == 0){
+			fprintf(stderr,"Server Error: Unable to open File '%s'\n",filename);
+			memset(buf, 0, sizeof(buf));
+			close(s);
+			exit(1);
 		}
-	close(s);
-	return 0;
+		if ( len < 0 ) {
+		 perror( "Client Error: recv" );
+		 close(s);
+		 exit(1);
+	 }
+		f = fopen(filename, "w");
+		while(len > 0){
+			if ( len < 0 ) {
+			 perror( "Client Error: recv" );
+			 close(s);
+			 exit(1);
+		 }
+		 fputs(buf,f);
+		 len = recv(s, buf, sizeof(buf),0);
+		}
+		fclose(f);
+		close(s);
+		return 0;
+	}
 }
 
 int lookup_and_connect( const char *host, const char *service ) {
@@ -81,7 +89,7 @@ int lookup_and_connect( const char *host, const char *service ) {
 	hints.ai_protocol = 0;
 
 	if ( ( s = getaddrinfo(host, service, &hints, &result ) ) != 0 ) {
-		fprintf( stderr, "stream-talk-client: getaddrinfo: %s\n", gai_strerror( s ) );
+		fprintf( stderr, "Client Error: getaddrinfo: %s\n", gai_strerror( s ) );
 		return -1;
 	}
 
@@ -98,26 +106,29 @@ int lookup_and_connect( const char *host, const char *service ) {
 		close( s );
 	}
 	if ( rp == NULL ) {
-		perror( "stream-talk-client: connect" );
+		perror( "Client Error: connect" );
 		return -1;
 	}
 	freeaddrinfo( result );
 
 	return s;
 }
-int sendall(int socket, char * buf, int *len){
-    int total = 0;        // how many bytes we've sent
-    int bytesleft = *len; // how many we have left to send
+int sendall(int socket, char * buf, int *size){
+    int totalBytes = 0;
+    int bytesRemaining = *size;
     int n;
 
-    while(total < *len) {
-        n = send(socket, buf + total, bytesleft, 0);
+    while(totalBytes < *size) {
+        n = send(socket, buf + totalBytes, bytesRemaining, 0);
         if (n == -1) { break; }
-        total += n;
-        bytesleft -= n;
+        totalBytes += n;
+        bytesRemaining -= n;
     }
-
-    *len = total; // return number actually sent here
-
-    return n==-1?-1:0; // return -1 on failure, 0 on success
+    *size = totalBytes;
+		if(n == -1){
+			return -1;
+		}
+		else{
+			return 0;
+		}
 }
